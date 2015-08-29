@@ -1,12 +1,12 @@
 from test import EXAMPLE as logo
-from test import calculate_similarity, create_image, PASS_THRESHOLD
+from test import calculate_similarity, PASS_THRESHOLD
 
 import binascii
 import random
 import zlib
+import re
+import copy
 
-mr = 3
-br = 10
 
 def create_image_fast(text, width=None, height=None):
     split_by_rows = text.split('\n')
@@ -29,63 +29,80 @@ def create_image_fast(text, width=None, height=None):
             new.append(' '*width)
     return new
 
-logo_img = create_image_fast(logo)
 
 def get_similarity(gene):
     T = create_image_fast(gene, width=len(logo_img[0]), height=len(logo_img))
     similarity = calculate_similarity(logo_img, T)
     return similarity 
 
-def mutate(gene, _mr=None):
-    if _mr is None: 
-        _mr = mr
-    n_gene = list(gene)
-    for _ in range(_mr):
-        i = random.choice(range(0,len(gene)))
-        if n_gene[i] != '\n':
-            n_gene[i] = random.choice(['', '*', ' '])
-    gene = ''.join(n_gene)
+
+sp_re = re.compile('\ +\*+')
+def extract_gene(text):
+    split_by_rows = text.split('\n')
+    split_by_rows = list(filter(lambda n: len(n.strip()) > 0, split_by_rows))
+    gene = []
+    for l in split_by_rows:
+        _l = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        s = sp_re.findall(l)
+        for i, x in enumerate(s):
+            _l[i*2] = x.rfind(' ')+1
+            _l[i*2+1] = len(x)-_l[i*2]
+        gene.append(_l)
     return gene
+
+def realize_gene(gene):
+    text = ''
+    for x in gene:
+        for i, y in enumerate(x):
+            text += (' *'[i%2])*y
+        text+='\n'
+    return text
+
+
+def mutate(gene, mr=3):
+    new = copy.deepcopy(gene) 
+    for _ in range(mr): 
+        x = random.choice(range(row))
+        y = random.choice(range(col))
+        new[x][y] += random.choice([-1,0,1])
+    return new
+
+
+def next_gen(alpha, num=10):
+    gen = [mutate(alpha) for _ in range(num)] + [alpha]
+    scores = [feedback(x) for x in gen]
+    return sorted(zip(scores, gen), key=lambda x: x[0])
+    
 
 def feedback(gene):
     v = 0
-    if get_similarity(gene) < PASS_THRESHOLD:
+    text = realize_gene(gene)
+    if get_similarity(text) < PASS_THRESHOLD:
         v = 1000
     else:
-        d = zlib.compress(gene, 9).replace(b'\n', b'\\n').replace(b'\r', b'\\r').replace(b'\x00', b'\\x00')
+        d = zlib.compress(text, 9).replace(b'\n', b'\\n').replace(b'\r', b'\\r').replace(b'\x00', b'\\x00')
         v = len(d)
         if d.find(b'\'') > 0 and d.find(b'\"') > 0:
             v += 1
     return v
 
+logo_img = create_image_fast(logo)
 
-def print_gen(gen):
-    print map(lambda x:x[0], gen)
-
-# load the previous alpha if it exists
 try:
-    _alpha = open('./alpha.txt').read()
-    alpha = [feedback(_alpha), _alpha]
+    # Load the previous alpha
+    alpha = extract_gene(open('alpha.txt').read())
 except:
-    alpha = [feedback(logo), logo]
+    alpha = extract_gene(logo)
 
-cur_gen = [alpha, alpha, alpha]
-i = 0
+row,col=len(alpha),len(alpha[0])
+
 try:
+    i = 0
     while True:
-        print 'Generation:', i, ', Alpha:', alpha[0]
         i += 1
-
-        cur_gen = sorted(map(lambda x: [feedback(x), x], 
-            [mutate(alpha[1]) for _ in range(br)] +
-            [mutate(cur_gen[1][1], _mr=mr*2) for _ in range(br)] +
-            [alpha[1], cur_gen[1][1]]), 
-            key=lambda x: x[0])
-        print_gen(cur_gen)
-        alpha = cur_gen[0]
-except KeyboardInterrupt:
-    print 'Saving...'
-    open('alpha.txt', 'w').write(alpha[1])
-    import os
-    os.system('python3 gen.py')
-    print len(open('pupu.py','rb').read())
+        gen = next_gen(alpha)
+        alpha = gen[0][1]
+        print 'Gen: {0}, alpha score: {1}'.format(i, gen[0][0])
+except:
+    open('./alpha.txt','w').write(realize_gene(alpha))
+    print 'Done!'
