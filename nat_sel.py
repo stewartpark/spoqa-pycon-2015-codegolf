@@ -59,17 +59,21 @@ def realize_gene(gene):
     return text
 
 
-def mutate(gene, mr=3):
+def mutate(gene, mr=1):
     new = copy.deepcopy(gene) 
+    c = (-1,0,1)
+    rX,rY = range(row),range(col)
     for _ in range(mr): 
-        x = random.choice(range(row))
-        y = random.choice(range(col))
-        new[x][y] += random.choice([-1,0,1])
+        x = random.choice(rX)
+        y = random.choice(rY)
+        new[x][y] += random.choice(c)
     return new
 
 
-def next_gen(alpha, num=10):
-    gen = [mutate(alpha) for _ in range(num)] + [alpha]
+def next_gen(alpha, second_alpha=None, num=10):
+    gen = [mutate(alpha, mr=3) for _ in range(num)] + [alpha]
+    if second_alpha:
+        gen += [mutate(second_alpha, mr=6) for _ in range(num)] + [second_alpha]
     scores = [feedback(x) for x in gen]
     return sorted(zip(scores, gen), key=lambda x: x[0])
     
@@ -94,14 +98,16 @@ try:
 except:
     alpha = extract_gene(logo)
 
+second_alpha = alpha
 row,col=len(alpha),len(alpha[0])
 
 try:
     i = 0
     while True:
         i += 1
-        gen = next_gen(alpha)
+        gen = next_gen(alpha, second_alpha)
         alpha = gen[0][1]
+        second_alpha = gen[1][1]
         print 'Gen: {0}, alpha score: {1}'.format(i, gen[0][0])
 except:
     open('./alpha.txt','w').write(realize_gene(alpha))
