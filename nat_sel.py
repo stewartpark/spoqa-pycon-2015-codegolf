@@ -5,7 +5,7 @@ import binascii
 import random
 import zlib
 
-mr = 2
+mr = 3
 br = 10
 
 def create_image_fast(text, width=None, height=None):
@@ -47,11 +47,7 @@ def mutate(gene, _mr=None):
     gene = ''.join(n_gene)
     return gene
 
-_cache = {}
 def feedback(gene):
-    _id = binascii.crc32(gene)
-    if _id in _cache: 
-        return _cache[_id]
     v = 0
     if get_similarity(gene) < PASS_THRESHOLD:
         v = 1000
@@ -60,8 +56,6 @@ def feedback(gene):
         v = len(d)
         if d.find(b'\'') > 0 and d.find(b'\"') > 0:
             v += 1
-        
-    _cache[_id] = v
     return v
 
 
